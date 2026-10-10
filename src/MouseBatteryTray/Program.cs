@@ -26,7 +26,7 @@ internal static class Program
         using var instance = new Mutex(true, "Local\\MouseBatteryTray", out var first);
         if (!first) return 0;
         ApplicationConfiguration.Initialize();
-        Application.Run(new TrayApp());
+        Application.Run(new TrayApp(args.Length == 2 && args[0] == "--observe" ? args[1] : null));
         return 0;
     }
 }
@@ -34,22 +34,25 @@ internal static class Program
 internal sealed class TrayApp : ApplicationContext
 {
     private readonly NotifyIcon tray;
-    private readonly System.Windows.Forms.Timer timer = new() { Interval = 30_000 };
+    private readonly Control dispatcher = new();
+    private readonly BatteryMonitor monitor = new();
     private readonly CancellationTokenSource shutdown = new();
     private readonly ToolStripMenuItem status = new("Connecting to G HUB…") { Enabled = false };
+    private readonly ToolStripMenuItem lastCheck = new("Waiting for first reading") { Enabled = false };
     private readonly ToolStripMenuItem startup = new("Start with Windows");
     private Icon? icon;
     private BatteryReading reading = new("Logitech mouse", null, false, "Connecting to G HUB");
-    private bool refreshing;
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string RunName = "MouseBatteryTray";
 
-    public TrayApp()
+    public TrayApp(string? observationPath = null)
     {
+        _ = dispatcher.Handle;
         var menu = new ContextMenuStrip();
         menu.Items.Add(status);
+        menu.Items.Add(lastCheck);
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Refresh now", null, async (_, _) => await RefreshAsync());
+        menu.Items.Add("Refresh now", null, (_, _) => monitor.RequestRefresh());
         menu.Items.Add(startup);
         startup.Click += (_, _) => ToggleStartup();
         menu.Items.Add(new ToolStripSeparator());
@@ -60,27 +63,37 @@ internal sealed class TrayApp : ApplicationContext
             catch { startup.Checked = false; }
         };
         tray = new NotifyIcon { ContextMenuStrip = menu, Visible = true };
-        tray.DoubleClick += async (_, _) => await RefreshAsync();
+        tray.DoubleClick += (_, _) => monitor.RequestRefresh();
         UpdateIcon();
-        timer.Tick += async (_, _) => await RefreshAsync();
-        timer.Start();
-        // Start after the Windows Forms message loop is ready, so continuations stay on the UI thread.
-        var initial = new System.Windows.Forms.Timer { Interval = 100 };
-        initial.Tick += async (_, _) => { initial.Stop(); initial.Dispose(); await RefreshAsync(); };
-        initial.Start();
+        SystemEvents.PowerModeChanged += PowerModeChanged;
+        _ = Task.Run(() => monitor.RunAsync(current => PostReading(current, observationPath), shutdown.Token));
     }
 
-    private async Task RefreshAsync()
+    private void PowerModeChanged(object sender, PowerModeChangedEventArgs e)
     {
-        if (refreshing || shutdown.IsCancellationRequested) return;
-        refreshing = true;
-        try { reading = await GHub.ReadAsync(shutdown.Token); }
-        catch (OperationCanceledException) when (shutdown.IsCancellationRequested) { return; }
-        catch (OperationCanceledException) { reading = new("Logitech mouse", null, false, "G HUB did not respond"); }
-        catch (Exception ex) when (ex is System.Net.WebSockets.WebSocketException or IOException or JsonException or InvalidOperationException)
-        { reading = new("Logitech mouse", null, false, "Battery unavailable — check G HUB"); }
-        finally { refreshing = false; }
-        if (!shutdown.IsCancellationRequested) UpdateIcon();
+        if (e.Mode == PowerModes.Resume) monitor.RequestRefresh();
+    }
+
+    private void PostReading(BatteryReading current, string? observationPath)
+    {
+        if (shutdown.IsCancellationRequested) return;
+        try
+        {
+            dispatcher.BeginInvoke(() =>
+            {
+                if (shutdown.IsCancellationRequested) return;
+                reading = current;
+                lastCheck.Text = "Last checked: " + DateTime.Now.ToString("HH:mm:ss");
+                UpdateIcon();
+                // Explicit diagnostic mode only. Records updates applied on the UI thread.
+                if (observationPath is not null)
+                {
+                    try { File.AppendAllText(observationPath, JsonSerializer.Serialize(new { CheckedAt = DateTimeOffset.UtcNow, Reading = current }) + Environment.NewLine); }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+                }
+            });
+        }
+        catch (InvalidOperationException) when (shutdown.IsCancellationRequested) { }
     }
 
     private void UpdateIcon()
@@ -125,8 +138,8 @@ internal sealed class TrayApp : ApplicationContext
     protected override void ExitThreadCore()
     {
         shutdown.Cancel();
-        timer.Stop();
-        timer.Dispose();
+        SystemEvents.PowerModeChanged -= PowerModeChanged;
+        dispatcher.Dispose();
         tray.Visible = false;
         tray.ContextMenuStrip?.Dispose();
         tray.Dispose();

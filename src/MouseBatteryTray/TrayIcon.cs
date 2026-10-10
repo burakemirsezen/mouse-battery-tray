@@ -21,12 +21,13 @@ internal static class TrayIcon
         using var border = new Pen(light ? Color.FromArgb(156, 166, 182) : Color.FromArgb(89, 104, 128), 1);
         graphics.FillPath(background, outline);
         graphics.DrawPath(border, outline);
-        var accent = reading.Charging ? (light ? Color.FromArgb(5, 125, 85) : Color.FromArgb(110, 231, 183)) :
+        var accent = reading.IsStale ? (light ? Color.FromArgb(112, 123, 140) : Color.FromArgb(148, 163, 184)) :
+            reading.Charging ? (light ? Color.FromArgb(5, 125, 85) : Color.FromArgb(110, 231, 183)) :
             reading.Percentage <= 10 ? (light ? Color.FromArgb(190, 30, 62) : Color.FromArgb(251, 113, 133)) :
             reading.Percentage <= 20 ? (light ? Color.FromArgb(161, 91, 0) : Color.FromArgb(251, 191, 36)) :
             light ? Color.FromArgb(5, 125, 85) : Color.FromArgb(110, 231, 183);
         var text = reading.Percentage?.ToString() ?? "?";
-        var textColor = reading.Charging || reading.Percentage <= 20 ? accent :
+        var textColor = reading.IsStale || reading.Charging || reading.Percentage <= 20 ? accent :
             light ? Color.FromArgb(25, 35, 50) : Color.FromArgb(241, 245, 249);
         using var textBrush = new SolidBrush(textColor);
         using var font = new Font("Segoe UI", text.Length == 3 ? 16 : 21, FontStyle.Bold, GraphicsUnit.Pixel);

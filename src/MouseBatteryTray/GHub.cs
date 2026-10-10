@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace MouseBatteryTray;
 
 internal sealed record MouseDevice(string Id, string Name, string State);
-internal sealed record BatteryReading(string Name, int? Percentage, bool Charging, string Status);
+internal sealed record BatteryReading(string Name, int? Percentage, bool Charging, string Status, bool IsStale = false);
 
 internal static class Protocol
 {
@@ -51,7 +51,7 @@ internal static class GHub
     public static async Task<BatteryReading> ReadAsync(CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(12));
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
         using var socket = new ClientWebSocket();
         socket.Options.AddSubProtocol("json");
         socket.Options.Proxy = null;

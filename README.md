@@ -13,7 +13,7 @@ It reads the battery value from Logitech G HUB's local background agent. No acco
 
 Right-click the icon to **Refresh now**, toggle **Start with Windows**, or **Quit**. Double-click also refreshes. Startup is off by default; move the executable before enabling it. Disable and re-enable startup if you move it later.
 
-The rounded badge has a small battery level bar and adapts to light/dark taskbars. The digits turn amber at 20% and red at 10%. Green digits with a lightning bolt mean charging. Hover to see the mouse name, percentage, and charging state. `?` means no current reading is available; check that G HUB is running and the mouse is connected.
+The rounded badge has a small battery level bar and adapts to light/dark taskbars. The digits turn amber at 20% and red at 10%. Green digits with a lightning bolt mean charging. Gray digits mean the last known reading while the mouse sleeps/disconnects or G HUB is unavailable; hover for its status. `?` appears only if no reading has been obtained yet. Right-click also shows when the app last checked.
 
 ## Compatibility
 
@@ -21,7 +21,8 @@ The rounded badge has a small battery level bar and adapts to light/dark taskbar
 - Tested on a **PRO X SUPERLIGHT** over a LIGHTSPEED receiver.
 - Other G HUB mice exposing battery status should work but are not hardware-tested.
 - If several battery mice are connected, the first active one reported by G HUB is displayed.
-- Refreshes every 30 seconds and reconnects automatically after G HUB restarts.
+- A background worker checks every five seconds, automatically retries failed reads, and refreshes immediately after Windows resumes. Manual refresh wakes the same worker; requests never overlap.
+- Keeps a clearly marked last known value during temporary failures and automatically restores the live value on recovery.
 - Shows the value G HUB reports, including its cached value for a sleeping/inactive mouse (marked in the tooltip).
 - Requires G HUB's local API. Logitech Options/Options+ and generic Bluetooth battery reporting are not supported.
 - G HUB's API is undocumented and may change in a future version.
@@ -54,7 +55,9 @@ The app connects to `ws://127.0.0.1:9010` with WebSocket subprotocol `json`. It 
 {"path":"/battery/<device-id>/state","verb":"GET","msgId":"unique-request-id"}
 ```
 
-It selects a `MOUSE` from `payload.deviceInfos` with `capabilities.hasBatteryStatus`, then reads `payload.percentage` and `payload.charging`. It supports fragmented WebSocket messages, limits message size and request time, and clears the displayed reading when the connection fails. It never changes mouse settings. It makes no internet requests and stores no device identifiers or telemetry. The optional startup setting is a per-user Windows Run entry.
+It selects a `MOUSE` from `payload.deviceInfos` with `capabilities.hasBatteryStatus`, then reads `payload.percentage` and `payload.charging`. It supports fragmented WebSocket messages and limits message size and request time. A single background worker owns the reads and posts updates to the tray's UI thread. Its in-memory last reading remains visible in gray through temporary failures. It never changes mouse settings. It makes no internet requests and stores no device identifiers or telemetry during normal use. The optional startup setting is a per-user Windows Run entry.
+
+For developer troubleshooting, `--observe <file>` writes each applied UI update as JSON lines to the supplied file. This explicit diagnostic mode records the display name, percentage, status, and time, and is off by default.
 
 The protocol was verified against the installed G HUB app and a live mouse. REA's ASAR analysis provided a partial graph; a focused trace did not resolve the battery route in that graph. Direct inspection of the packaged JavaScript found the endpoint and route, and a live read confirmed the response fields. No Logitech code or assets are distributed in this repository.
 

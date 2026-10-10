@@ -4,3 +4,4 @@ dist/
 *.user
 *.zip
 *.check.json
+*.observe.jsonl

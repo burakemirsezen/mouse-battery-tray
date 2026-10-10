@@ -13,4 +13,5 @@ foreach (var data in new[] { "{}", "{\"percentage\":-1}", "{\"percentage\":101}"
 Check(Protocol.Battery(mouse with { State = "INACTIVE" }, Json("""{"percentage":12}""")).Status.Contains("inactive"), "Inactive device marked in status");
 Check(Protocol.Battery(mouse, Json("""{"percentage":12,"chargingError":true}""")).Status == "Charging error", "Charging errors surfaced");
 Check(Protocol.Mice(Json("{}")).Count == 0, "Missing device list");
-Console.WriteLine("All protocol tests passed.");
+await MonitorTests.RunAsync();
+Console.WriteLine("All protocol and monitoring tests passed.");
