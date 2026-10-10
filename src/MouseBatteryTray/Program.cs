@@ -1,5 +1,3 @@
-using System.Drawing.Drawing2D;
-using System.Drawing.Text;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.Win32;
@@ -106,19 +104,7 @@ internal sealed class TrayApp : ApplicationContext
             light = key?.GetValue("SystemUsesLightTheme") is int value && value == 1;
         }
         catch { }
-        using var image = new Bitmap(32, 32);
-        using var graphics = Graphics.FromImage(image);
-        graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-        var text = reading.Percentage?.ToString() ?? "?";
-        var color = reading.Charging ? (light ? Color.DarkGreen : Color.LimeGreen) :
-            reading.Percentage <= 10 ? (light ? Color.Firebrick : Color.Tomato) :
-            reading.Percentage <= 20 ? (light ? Color.DarkOrange : Color.Gold) : light ? Color.Black : Color.White;
-        using var brush = new SolidBrush(color);
-        using var font = new Font("Segoe UI", text.Length == 3 ? 17 : 22, FontStyle.Bold, GraphicsUnit.Pixel);
-        using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-        graphics.DrawString(text, font, brush, new RectangleF(-1, -1, 34, 31), format);
-        if (reading.Charging) graphics.FillRectangle(brush, 10, 29, 12, 2);
+        using var image = TrayIcon.Draw(reading, light);
         var handle = image.GetHicon();
         try { using var native = Icon.FromHandle(handle); return (Icon)native.Clone(); }
         finally { DestroyIcon(handle); }

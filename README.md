@@ -13,7 +13,7 @@ It reads the battery value from Logitech G HUB's local background agent. No acco
 
 Right-click the icon to **Refresh now**, toggle **Start with Windows**, or **Quit**. Double-click also refreshes. Startup is off by default; move the executable before enabling it. Disable and re-enable startup if you move it later.
 
-The icon turns yellow at 20% and red at 10%. Green digits with a small underline mean charging. Hover to see the mouse name, percentage, and charging state. `?` means no current reading is available; check that G HUB is running and the mouse is connected.
+The rounded badge has a small battery level bar and adapts to light/dark taskbars. The digits turn amber at 20% and red at 10%. Green digits with a lightning bolt mean charging. Hover to see the mouse name, percentage, and charging state. `?` means no current reading is available; check that G HUB is running and the mouse is connected.
 
 ## Compatibility
 
