@@ -9,6 +9,12 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == "--startup" && args[1] is "on" or "off")
+        {
+            try { StartupRegistration.SetEnabled(args[1] == "on", Application.ExecutablePath); return 0; }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or COMException or InvalidOperationException)
+            { Console.Error.WriteLine("Could not change startup setting: " + ex.Message); return 1; }
+        }
         if (args.Length == 2 && args[0] == "--check")
         {
             try
@@ -42,11 +48,11 @@ internal sealed class TrayApp : ApplicationContext
     private readonly ToolStripMenuItem startup = new("Start with Windows");
     private Icon? icon;
     private BatteryReading reading = new("Logitech mouse", null, false, "Connecting to G HUB");
-    private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string RunName = "MouseBatteryTray";
 
     public TrayApp(string? observationPath = null)
     {
+        try { StartupRegistration.MigrateLegacy(Application.ExecutablePath); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException or COMException or InvalidOperationException) { }
         _ = dispatcher.Handle;
         var menu = new ContextMenuStrip();
         menu.Items.Add(status);
@@ -59,7 +65,7 @@ internal sealed class TrayApp : ApplicationContext
         menu.Items.Add("Quit", null, (_, _) => ExitThread());
         menu.Opening += (_, _) =>
         {
-            try { using var key = Registry.CurrentUser.OpenSubKey(RunKey); startup.Checked = key?.GetValue(RunName) is string; }
+            try { startup.Checked = StartupRegistration.IsEnabled; }
             catch { startup.Checked = false; }
         };
         tray = new NotifyIcon { ContextMenuStrip = menu, Visible = true };
@@ -127,11 +133,9 @@ internal sealed class TrayApp : ApplicationContext
     {
         try
         {
-            using var key = Registry.CurrentUser.CreateSubKey(RunKey);
-            if (key.GetValue(RunName) is not null) key.DeleteValue(RunName, false);
-            else key.SetValue(RunName, "\"" + Application.ExecutablePath + "\"");
+            StartupRegistration.SetEnabled(!StartupRegistration.IsEnabled, Application.ExecutablePath);
         }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException or COMException or InvalidOperationException)
         { MessageBox.Show("Could not change startup setting: " + ex.Message, "Mouse Battery Tray"); }
     }
 
